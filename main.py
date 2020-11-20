@@ -45,6 +45,8 @@ class Chat:
         self.__chat_id = chat_id
         self.__banned_words = []
         self.__links = True
+        self.__forward = True
+        self.__users_in_chat = []
 
     def get_owner_id(self):
         return self.__owner_id
@@ -63,6 +65,23 @@ class Chat:
 
     def change_links(self):
         self.__links = not self.__links
+
+    def get_forward(self):
+        return self.__forward
+
+    def change_forward(self):
+        self.__forward = not self.__forward
+
+    def get_users_in_chat(self):
+        return self.__users_in_chat
+
+    def add_users_in_chat(self, user_in_chat):
+        self.__users_in_chat.append(user_in_chat)
+
+    def is_user_in_chat(self, user_id):
+        if user_id in self.__users_in_chat:
+            return True
+        return False
 
 
 def is_user(user_id):
@@ -87,12 +106,29 @@ def get_user(user_id):
         counter += 1
 
 
-def chat_number(user_id):
+def get_chat(chat_id):
     chat_numb = 0
+    for chat in chats:
+        if chat.get_chat_id() == chat_id:
+            return chat_numb
+        chat_numb += 1
+
+
+def chat_number(user_id):
     for us in users:
         if us.get_user_id() == user_id:
             chat_numb = us.get_number_chat()
-    return chat_numb
+
+    names = 0
+    counter = -1
+    for chat in chats:
+        if chat_numb == names:
+            return counter
+        if chat.get_owner_id() == user_id:
+            names += 1
+        counter += 1
+    if chat_numb == names:
+        return counter
 
 
 def start_buttons():
@@ -103,6 +139,30 @@ def start_buttons():
     but_4 = types.InlineKeyboardButton(text="Как пользоваться", callback_data="info")
     key.add(but_1, but_2)
     key.add(but_3, but_4)
+    return key
+
+
+def settings_buttons(chat_numb):
+    if chats[chat_numb].get_links():
+        link_txt = "(разрешены)"
+    else:
+        link_txt = "(запрещены)"
+
+    if chats[chat_numb].get_forward():
+        forward_txt = "(разрешены)"
+    else:
+        forward_txt = "(запрещены)"
+
+    key = types.InlineKeyboardMarkup()
+    but_1 = types.InlineKeyboardButton(text="Запрещённые слова", callback_data="banned_words")
+    but_2 = types.InlineKeyboardButton(text="Ссылки" + link_txt, callback_data="url")
+    but_3 = types.InlineKeyboardButton(text="Пересланные сообщения" + forward_txt, callback_data="forwarded")
+    but_4 = types.InlineKeyboardButton(text="Запрет писать ", callback_data="start")
+    but_5 = types.InlineKeyboardButton(text="Назад", callback_data="start")
+    key.add(but_1, but_2)
+    key.add(but_3)
+    key.add(but_4)
+    key.add(but_5)
     return key
 
 
@@ -124,13 +184,14 @@ def start(message):
 
 @bot.callback_query_handler(func=lambda call: call.data == "start")
 def start(call):
-    try:
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-    except Exception:
-        pass
-    key = start_buttons()
-    text = "Выберите действие"
-    bot.send_message(call.from_user.id, text, reply_markup=key, parse_mode='Markdown')
+    if call.message.chat.id > 0:
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            print(e)
+        key = start_buttons()
+        text = "Выберите действие"
+        bot.send_message(call.from_user.id, text, reply_markup=key, parse_mode='Markdown')
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "news")
@@ -161,8 +222,8 @@ def my_chats(call):
     else:
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
-        except Exception:
-            pass
+        except Exception as e:
+            print(e)
         number = get_user(call.from_user.id)
         users[number].set_can_change(True)
         txt = "Введите номер чата\n"
@@ -173,39 +234,23 @@ def my_chats(call):
 
 @bot.message_handler(commands=[""])
 def chat_settings(message):
-    chat_numb = chat_number(message.chat.id)
-
-    if chats[chat_numb - 1].get_links():
-        link_txt = "(разрешены)"
-    else:
-        link_txt = "(запрещены)"
-    key = types.InlineKeyboardMarkup()
-    but_1 = types.InlineKeyboardButton(text="Запрещённые слова", callback_data="banned_words")
-    but_2 = types.InlineKeyboardButton(text="Ссылки" + link_txt, callback_data="url_forward")
-    but_3 = types.InlineKeyboardButton(text="Назад", callback_data="start")
-    key.add(but_1, but_2)
-    key.add(but_3)
-    bot.send_message(message.chat.id, "Выберите действие", reply_markup=key, parse_mode='Markdown')
+    if message.chat.id > 0:
+        try:
+            chat_numb = chat_number(message.chat.id)
+            key = settings_buttons(chat_numb)
+            bot.send_message(message.chat.id, "Выберите действие", reply_markup=key, parse_mode='Markdown')
+        except Exception as e:
+            print(e)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "chat_settings")
 def chat_settings(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
-    except Exception:
-        pass
+    except Exception as e:
+        print(e)
     chat_numb = chat_number(call.from_user.id)
-
-    if chats[chat_numb - 1].get_links():
-        link_txt = "(разрешены)"
-    else:
-        link_txt = "(запрещены)"
-    key = types.InlineKeyboardMarkup()
-    but_1 = types.InlineKeyboardButton(text="Запрещённые слова", callback_data="banned_words")
-    but_2 = types.InlineKeyboardButton(text="Ссылки" + link_txt, callback_data="url_forward")
-    but_3 = types.InlineKeyboardButton(text="Назад", callback_data="start")
-    key.add(but_1, but_2)
-    key.add(but_3)
+    key = settings_buttons(chat_numb)
     bot.send_message(call.from_user.id, "Выберите действие", reply_markup=key, parse_mode='Markdown')
 
 
@@ -213,9 +258,9 @@ def chat_settings(call):
 def banned_words(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
     chat_numb = chat_number(call.from_user.id)
-    banned_w = chats[chat_numb - 1].get_banned_words()
+    banned_w = chats[chat_numb].get_banned_words()
     if banned_w:
-        bot.send_message(call.from_user.id, "Запрещённые слова - " + banned_w)
+        bot.send_message(call.from_user.id, "Запрещённые слова: " + " ".join(banned_w))
     else:
         bot.send_message(call.from_user.id, "Запрещённых слов нет")
 
@@ -235,18 +280,24 @@ def change_banned_words(call):
     bot.send_message(call.from_user.id, "Введите запрещённые слова через пробел\nПример: один два три")
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "url_forward")
-def url_forward(call):
+@bot.callback_query_handler(func=lambda call: call.data == "url")
+def url(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
     chat_numb = chat_number(call.from_user.id)
-    chats[chat_numb - 1].change_links()
+    chats[chat_numb].change_links()
+    chat_settings(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "forwarded")
+def forwarded(call):
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    chat_numb = chat_number(call.from_user.id)
+    chats[chat_numb].change_forward()
     chat_settings(call)
 
 
 @bot.message_handler()
 def message_handler(message):
-    print(message)
-    print(message.text)
     if message.chat.id > 0:
         names = []
         for chat in chats:
@@ -271,29 +322,44 @@ def message_handler(message):
                 chat_numb = chat_number(message.chat.id)
                 words = message.text
                 words = words.split(" ")
-                chats[chat_numb - 1].set_banned_words(words)
+                chats[chat_numb].set_banned_words(words)
                 us.set_can_change_words(False)
                 chat_settings(message)
 
         if not is_any:
             bot.send_message(message.chat.id, "Извините, я не понял.")
     else:
+        for chat in chats:
+            if message.chat.id == chat.get_chat_id() and not chat.is_user_in_chat(message.chat.id):
+                chat.add_users_in_chat(message.chat.id)
+
         for admin in bot.get_chat_administrators(message.chat.id):
             if admin.status == "creator" and not is_creator(admin.user.id):
+                print(admin.user.id, message.chat.id)
                 chats.append(Chat(admin.user.id, message.chat.id))
-        chat_numb = chat_number(message.chat.id)
-        words = chats[chat_numb - 1].get_banned_words()
+        chat_numb = get_chat(message.chat.id)
+        words = chats[chat_numb].get_banned_words()
         message.text.lower()
+        try:
+            for word in words:
+                if re.search(rf'\b{word}\b', message.text):
+                    bot.delete_message(message.chat.id, message.message_id)
+                    break
+            if not chats[chat_numb - 1].get_links():
+                if re.search(r'\bhttps://\b', message.text):
+                    bot.delete_message(message.chat.id, message.message_id)
 
-        for word in words:
-            print(word)
-            print(message.text)
-            if re.search(rf'\b{word}\b', message.text):
+            if not chats[chat_numb - 1].get_forward() and message.forward_date:
                 bot.delete_message(message.chat.id, message.message_id)
-                break
-        if not chats[chat_numb - 1].get_links():
-            if re.search(r'\bhttps://\b', message.text):
-                bot.delete_message(message.chat.id, message.message_id)
+        except Exception as e:
+            print(e)
+        # bot.get_chat_member(-1001302195525, 1070942344)
+        # bot.get_chat_member(-1001302195525, 443109443)
+        #
+        # print("12", bot.get_chat_member(-1001431663155, 443109443))
+        #
+        # bot.restrict_chat_member(-1001108421880, 1070942344)
+        # bot.promote_chat_member(-1001108421880, 1070942344)
 
 
 if __name__ == "__main__":
