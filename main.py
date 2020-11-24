@@ -98,7 +98,11 @@ class Chat:
         self.__forward = True
         self.__banned_time = 0
         self.__banned_chanel = 0
+        self.__banned_chanel_name = ""
+        self.__banned_chanel_all = 0
+        self.__banned_chanel_new = 0
         self.__users_in_chat = []
+        self.__new_users_in_chat = []
 
     def get_owner_id(self):
         return self.__owner_id
@@ -139,6 +143,12 @@ class Chat:
                 return True
         return False
 
+    def add_new_user_in_chat(self, user_id):
+        self.__new_users_in_chat.append(user_id)
+
+    def is_new_user_in_chat(self, user_id):
+        return user_id in self.__new_users_in_chat
+
     def get_banned_time(self):
         return self.__banned_time
 
@@ -150,6 +160,24 @@ class Chat:
 
     def set_banned_chanel(self, banned_chanel):
         self.__banned_chanel = banned_chanel
+
+    def get_banned_chanel_name(self):
+        return self.__banned_chanel_name
+
+    def set_banned_chanel_name(self, banned_chanel_name):
+        self.__banned_chanel_name = banned_chanel_name
+
+    def get_banned_chanel_all(self):
+        return self.__banned_chanel_all
+
+    def set_banned_chanel_all(self, banned_chanel_all):
+        self.__banned_chanel_all = banned_chanel_all
+
+    def get_banned_chanel_new(self):
+        return self.__banned_chanel_new
+
+    def set_banned_chanel_new(self, banned_chanel_new):
+        self.__banned_chanel_new = banned_chanel_new
 
 
 def is_user(user_id):
@@ -225,7 +253,7 @@ def settings_buttons(chat_numb):
     but_1 = types.InlineKeyboardButton(text="Запрещённые слова", callback_data="banned_words")
     but_2 = types.InlineKeyboardButton(text="Ссылки" + link_txt, callback_data="url")
     but_3 = types.InlineKeyboardButton(text="Пересланные сообщения" + forward_txt, callback_data="forwarded")
-    but_4 = types.InlineKeyboardButton(text="Запрет писать", callback_data="banned_user")
+    but_4 = types.InlineKeyboardButton(text="Запреты писать", callback_data="banned_user")
     but_5 = types.InlineKeyboardButton(text="Назад", callback_data="start")
     key.add(but_1, but_2)
     key.add(but_3)
@@ -255,8 +283,8 @@ def start(call):
     if call.message.chat.id > 0:
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
-        except Exception:
-            print(e)
+        except Exception as e:
+            pass
         key = start_buttons()
         text = "Выберите действие"
         bot.send_message(call.from_user.id, text, reply_markup=key, parse_mode='Markdown')
@@ -272,7 +300,8 @@ def news(call):
 @bot.callback_query_handler(func=lambda call: call.data == "info")
 def info(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.from_user.id, "Добавьте бота в свой чат, повысьте его права"
+    bot.send_message(call.from_user.id, "Добавьте бота в свою группу (Важно, для это должна быть супергруппа),"
+                                        " повысьте его права"
                                         " до администратора, далее создатель чата может"
                                         " настроить бота (Мои чаты -> Настройки)")
     start(call)
@@ -291,7 +320,7 @@ def my_chats(call):
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
         except Exception as e:
-            print(e)
+            pass
         number = get_user(call.from_user.id)
         users[number].set_can_change(True)
         txt = "Введите номер чата\n"
@@ -316,7 +345,7 @@ def chat_settings(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
-        print(e)
+        pass
     chat_numb = chat_number(call.from_user.id)
     key = settings_buttons(chat_numb)
     bot.send_message(call.from_user.id, "Выберите действие", reply_markup=key, parse_mode='Markdown')
@@ -327,7 +356,7 @@ def banned_words(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
-        print(e)
+        pass
     chat_numb = chat_number(call.from_user.id)
     banned_w = chats[chat_numb].get_banned_words()
     if banned_w:
@@ -348,7 +377,7 @@ def change_banned_words(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
-        print(e)
+        pass
     number = get_user(call.from_user.id)
     users[number].set_can_change_words(True)
     bot.send_message(call.from_user.id, "Введите запрещённые слова через пробел\nПример: один два три")
@@ -359,7 +388,7 @@ def url(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
-        print(e)
+        pass
     chat_numb = chat_number(call.from_user.id)
     chats[chat_numb].change_links()
     chat_settings(call)
@@ -370,7 +399,7 @@ def forwarded(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
-        print(e)
+        pass
     chat_numb = chat_number(call.from_user.id)
     chats[chat_numb].change_forward()
     chat_settings(call)
@@ -381,7 +410,7 @@ def banned_user(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
-        print(e)
+        pass
     key = types.InlineKeyboardMarkup()
     chat_numb = chat_number(call.from_user.id)
     if chats[chat_numb].get_banned_time() == 0:
@@ -389,16 +418,23 @@ def banned_user(call):
     else:
         banned_time_txt = f"({chats[chat_numb].get_banned_time()} минут)"
 
-    if chats[chat_numb].get_banned_chanel() == 0:
+    if chats[chat_numb].get_banned_chanel_name() == "":
         banned_chanel_txt = "(нет)"
     else:
-        banned_chanel_txt = f"({chats[chat_numb].get_banned_chanel()})"
-    but_1 = types.InlineKeyboardButton(text="Запрет писать первое время " + banned_time_txt, callback_data="banned_by_time")
-    but_2 = types.InlineKeyboardButton(text="Запрет писать если не в канале" + banned_chanel_txt, callback_data="banned_by_chanel")
-    but_3 = types.InlineKeyboardButton(text="Назад", callback_data="chat_settings")
+        banned_chanel_txt = f"(@chats[chat_numb].get_banned_chanel_name())"
+    but_1 = types.InlineKeyboardButton(text="Запрет писать новым пользователям первое время " + banned_time_txt,
+                                       callback_data="banned_by_time")
+
+    but_2 = types.InlineKeyboardButton(text="Запрет писать если пользователь не в канале " + banned_chanel_txt,
+                                       callback_data="banned_by_chanel")
+
+    but_3 = types.InlineKeyboardButton(text="Запрет писать если пользователь не добавил друга" + banned_chanel_txt,
+                                       callback_data="banned_by_chanel")
+
+    but_4 = types.InlineKeyboardButton(text="Назад", callback_data="chat_settings")
     key.add(but_1)
     key.add(but_2)
-    key.add(but_3)
+    key.add(but_4)
     bot.send_message(call.from_user.id, "Выберите действие", reply_markup=key, parse_mode='Markdown')
 
 
@@ -407,7 +443,7 @@ def banned_by_time(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
-        print(e)
+        pass
     number = get_user(call.from_user.id)
     users[number].set_can_change_time_banned(True)
     bot.send_message(call.from_user.id, "Введите время (в минутах) сколько нельзя писать новым участники группы")
@@ -418,66 +454,154 @@ def banned_by_chanel(call):
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception as e:
-        print(e)
+        pass
 
+    key = types.InlineKeyboardMarkup()
+    but_1 = types.InlineKeyboardButton(text="Применять ко всем участникам", callback_data="banned_chanel_all")
+    but_2 = types.InlineKeyboardButton(text="Применять только к новым участникам", callback_data="banned_chanel_new")
+    key.add(but_1)
+    key.add(but_2)
+    bot.send_message(call.from_user.id, "Выберите действие", reply_markup=key, parse_mode='Markdown')
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "banned_chanel_all")
+def banned_chanel_all(call):
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception as e:
+        pass
     number = get_user(call.from_user.id)
     users[number].set_can_change_group_banned(True)
+    chat_numb = chat_number(call.from_user.id)
+    chats[chat_numb].set_banned_chanel_new(0)
+    chats[chat_numb].set_banned_chanel_all(1)
+    bot.send_message(call.from_user.id, "Добавьте бота в канал и после этого парешлите "
+                                        "боту любой пост с канала где есть текст.")
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "banned_chanel_new")
+def banned_chanel_new(call):
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except Exception as e:
+        pass
+    number = get_user(call.from_user.id)
+    users[number].set_can_change_group_banned(True)
+    chat_numb = chat_number(call.from_user.id)
+    chats[chat_numb].set_banned_chanel_new(1)
+    chats[chat_numb].set_banned_chanel_all(0)
     bot.send_message(call.from_user.id, "Добавьте бота в канал и после этого парешлите "
                                         "боту любой пост с канала где есть текст.")
 
 
 @bot.message_handler(content_types=["new_chat_members"])
 def new_member(message):
-    chat_numb = get_chat(message.chat.id)
-    if not chats[chat_numb].is_user_in_chat(message.from_user.id):
-        chats[chat_numb].add_user_in_chat(message.from_user.id)
+    a = message.json
+    print(a["from"]["id"])
 
-    users_in_chat = chats[chat_numb].get_users_in_chat()
-    for us in users_in_chat:
-        if us.get_user_id() == message.from_user.id:
-            if chats[chat_numb].get_banned_time() > 0:
-                us.set_time_of_ban(chats[chat_numb].get_banned_time())
-                us.set_when_banned(time.time())
-                us.set_is_time_banned(True)
-                bot.restrict_chat_member(chats[chat_numb].get_chat_id(), us.get_user_id())
+    try:
+        chat_numb = get_chat(message.chat.id)
+        if not chats[chat_numb].is_user_in_chat(message.from_user.id):
+            chats[chat_numb].add_user_in_chat(message.from_user.id)
 
-            if chats[chat_numb].get_banned_chanel() != 0:
-                try:
-                    if bot.get_chat_member(chats[chat_numb].get_chat_banned(), message.from_user.id):
-                        pass
-                except Exception as e:
+        if not chats[chat_numb].is_new_user_in_chat(message.from_user.id):
+            chats[chat_numb].add_new_user_in_chat(message.from_user.id)
+
+        users_in_chat = chats[chat_numb].get_users_in_chat()
+        for us in users_in_chat:
+            if us.get_user_id() == message.from_user.id:
+                if chats[chat_numb].get_banned_time() > 0:
+                    us.set_time_of_ban(chats[chat_numb].get_banned_time())
+                    us.set_when_banned(time.time())
+                    us.set_is_time_banned(True)
                     bot.restrict_chat_member(chats[chat_numb].get_chat_id(), us.get_user_id())
-                    us.set_is_group_banned(True)
 
-    text = f"Добро пожаловать, {message.from_user.first_name}"
-    bot.send_message(message.chat.id, text)
-    bot.delete_message(message.chat.id, message.message_id)
+                if chats[chat_numb].get_banned_chanel() != 0:
+                    try:
+                        member = bot.get_chat_member(chats[chat_numb].get_chat_banned(), message.from_user.id)
+                        if member and str(member.status) != "left":
+                            pass
+                    except Exception as e:
+                        bot.restrict_chat_member(chats[chat_numb].get_chat_id(), us.get_user_id())
+                        us.set_is_group_banned(True)
+
+        text = f"Добро пожаловать, {message.from_user.first_name}"
+        bot.send_message(message.chat.id, text)
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception as e:
+        print(e)
 
 
 @bot.message_handler(content_types=["left_chat_member"])
 def left_member(message):
-    bot.delete_message(message.chat.id, message.message_id)
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception:
+        pass
 
 
 def check_banned():
     old_time = time.time()
     while True:
-        if time.time() - old_time > 5:
+        if time.time() - old_time > 2:
             for chat in chats:
                 users_in_chat = chat.get_users_in_chat()
                 for us in users_in_chat:
                     try:
                         if time.time() - us.get_when_banned() > us.get_time_of_ban() * 60 and us.get_is_time_banned():
-                            bot.promote_chat_member(chat.get_chat_id(), us.get_user_id())
-                            us.set_is_time_banned(False)
+                            member = bot.get_chat_member(chat.get_banned_chanel(), us.get_user_id())
+                            if us.get_is_group_banned():
+                                if member and str(member.status) != "left":
+                                    bot.promote_chat_member(chat.get_chat_id(), us.get_user_id())
+                                    us.set_is_time_banned(False)
+                            else:
+                                bot.promote_chat_member(chat.get_chat_id(), us.get_user_id())
+                                us.set_is_time_banned(False)
                     except Exception as e:
-                        print(e)
+                        pass
                     try:
-                        if us.get_is_group_banned() and bot.get_chat_member(chat.get_banned_chanel(), us.get_user_id()):
+                        member = bot.get_chat_member(chat.get_banned_chanel(), us.get_user_id())
+                        if us.get_is_group_banned() and member and str(member.status) != "left":
                             us.set_is_group_banned(False)
                             bot.promote_chat_member(chat.get_chat_id(), us.get_user_id())
                     except Exception as e:
-                        print(e)
+                        pass
+
+                    if chat.get_banned_chanel() != 0 and chat.get_banned_chanel_all() == 1:
+                        try:
+                            member = bot.get_chat_member(chat.get_banned_chanel(), us.get_user_id())
+                            if member and str(member.status) != "left":
+                                pass
+                            else:
+                                try:
+                                    bot.restrict_chat_member(chat.get_chat_id(), us.get_user_id())
+                                    us.set_is_group_banned(True)
+                                except Exception as e:
+                                    print(e)
+                        except Exception as e:
+                            try:
+                                bot.restrict_chat_member(chat.get_chat_id(), us.get_user_id())
+                                us.set_is_group_banned(True)
+                            except Exception as e:
+                                print(e)
+
+                    if chat.get_banned_chanel() != 0 and chat.get_banned_chanel_new() == 1 and chat.is_new_user_in_chat(us.get_user_id()):
+                        try:
+                            member = bot.get_chat_member(chat.get_banned_chanel(), us.get_user_id())
+                            if member and str(member.status) != "left":
+                                pass
+                            else:
+                                try:
+                                    bot.restrict_chat_member(chat.get_chat_id(), us.get_user_id())
+                                    us.set_is_group_banned(True)
+                                except Exception as e:
+                                    pass
+                        except Exception as e:
+                            try:
+                                bot.restrict_chat_member(chat.get_chat_id(), us.get_user_id())
+                                us.set_is_group_banned(True)
+                            except Exception as e:
+                                pass
 
             old_time = time.time()
 
@@ -526,44 +650,44 @@ def message_handler(message):
 
             elif us.get_user_id() == message.chat.id and us.get_can_change_group_banned():
                 if message.forward_from_chat:
-                    chat_numb = chat_number(message.chat.id)
-                    chats[chat_numb].set_banned_chanel(message.forward_from_chat.id)
-                    print(message.forward_from_chat.title)
-                    is_any = True
-                    chat_settings(message)
+                    try:
+                        bot.get_chat_member(message.forward_from_chat.id, us.get_user_id())
+                        chat_numb = chat_number(message.chat.id)
+                        chats[chat_numb].set_banned_chanel(message.forward_from_chat.id)
+                        chats[chat_numb].set_banned_chanel_name(message.forward_from_chat.username)
+                        is_any = True
+                        chat_settings(message)
+                    except Exception:
+                        bot.send_message(message.chat.id, "Сперва добавьте бота в канал.")
+                        is_any = True
 
         if not is_any:
             bot.send_message(message.chat.id, "Извините, я не понял.")
     else:
-        for chat in chats:
-            if message.chat.id == chat.get_chat_id() and not chat.is_user_in_chat(message.chat.id):
-                chat.add_users_in_chat(message.chat.id)
-
-        for admin in bot.get_chat_administrators(message.chat.id):
-            if admin.status == "creator" and not is_creator(admin.user.id):
-                chats.append(Chat(admin.user.id, message.chat.id))
-        chat_numb = get_chat(message.chat.id)
-        if not chats[chat_numb].is_user_in_chat(message.from_user.id):
-            chats[chat_numb].add_user_in_chat(message.from_user.id)
-        words = chats[chat_numb].get_banned_words()
-        message.text.lower()
         try:
-            for word in words:
-                if re.search(rf'\b{word}\b', message.text):
-                    bot.delete_message(message.chat.id, message.message_id)
-                    break
-            if not chats[chat_numb].get_links():
-                if re.search(r'\bhttps://\b', message.text):
-                    bot.delete_message(message.chat.id, message.message_id)
+            for admin in bot.get_chat_administrators(message.chat.id):
+                if admin.status == "creator" and not is_creator(admin.user.id):
+                    chats.append(Chat(admin.user.id, message.chat.id))
+            chat_numb = get_chat(message.chat.id)
+            if not chats[chat_numb].is_user_in_chat(message.from_user.id):
+                chats[chat_numb].add_user_in_chat(message.from_user.id)
+            words = chats[chat_numb].get_banned_words()
+            message.text.lower()
+            try:
+                for word in words:
+                    if re.search(rf'\b{word}\b', message.text):
+                        bot.delete_message(message.chat.id, message.message_id)
+                        break
+                if not chats[chat_numb].get_links():
+                    if re.search(r'\bhttps://\b', message.text):
+                        bot.delete_message(message.chat.id, message.message_id)
 
-            if not chats[chat_numb].get_forward() and message.forward_date:
-                bot.delete_message(message.chat.id, message.message_id)
+                if not chats[chat_numb].get_forward() and message.forward_date:
+                    bot.delete_message(message.chat.id, message.message_id)
+            except Exception as e:
+                print(e)
         except Exception as e:
             print(e)
-        # bot.get_chat_member(-1001302195525, 1070942344)
-        # bot.get_chat_member(-1001302195525, 443109443)
-        #
-        # print("12", bot.get_chat_member(-1001431663155, 443109443))
 
 
 if __name__ == "__main__":
@@ -571,7 +695,7 @@ if __name__ == "__main__":
         try:
             x = threading.Thread(target=check_banned)
             x.start()
-            bot.polling(none_stop=True, interval=0)
+            bot.polling()
 
         except Exception as e:
             print(e)
